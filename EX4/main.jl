@@ -91,7 +91,6 @@ function main()
             data[1]["ehitis"]["ehitiseKujud"]["ruumikuju"][1]["geometry"]["coordinates"][1]
         catch e
             println("Error accessing coordinates in $filename: $e")
-            []
         end
 
         println("Raw coordinates: ", coords_raw)
