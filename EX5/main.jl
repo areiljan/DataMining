@@ -1,4 +1,9 @@
 using XLSX
+using PyCall
+
+
+# import pyfim package (install using install.sh), set up in julia Pkg
+pyfim = pyimport("fim")
 
 function open_xlsx(path::String)
     println("Reading Excel file $path")
@@ -66,6 +71,27 @@ function main()
     println("\nFirst few clients:")
     for (i, (client, items)) in enumerate(collect(client_items)[1:min(5, end)])
         println("Client $client: $items")
+    end
+
+    # Try importing
+    fim = pyimport("fim")
+    if fim !== empty
+        println("import successful")
+    end
+
+    transactions = [
+        [1, 2, 3],
+        [1, 2],
+        [2, 3],
+        [1, 3]
+    ]
+
+    result = fim.Experiment(tshekid_path)  # 40% support threshold
+
+    # Print the results
+    println("Frequent Itemsets:")
+    for itemset in result
+        println(itemset)
     end
 end
 
