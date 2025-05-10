@@ -1,7 +1,10 @@
 include("./clustering.jl")
 
-clustering(
-    "building_data.csv",
-    k=3,
-    features=[:maht, :koetavPind, :ehitisalunePind, :maxKorrusteArv],
-    print_results=true)
+for i in 2:4
+    clustering(
+        "building_data.csv",
+        k=i,
+        features=[:maht, :koetavPind, :ehitisalunePind, :maxKorrusteArv],
+        print_results=true,
+        output_file="k$(i).png")
+end

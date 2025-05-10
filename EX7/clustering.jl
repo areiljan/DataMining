@@ -11,19 +11,6 @@ using TSne: tsne
 using StatsPlots
 using GaussianMixtures: GMM, gmmposterior
 
-function compress_clusters(tsne_coords::Matrix{Float64}, cluster_labels::Vector{Int}; compression_factor=0.5)
-    new_coords = similar(tsne_coords)
-    for c in unique(cluster_labels)
-        inds = findall(==(c), cluster_labels)
-        cluster_points = tsne_coords[inds, :]
-        centroid = vec(mean(cluster_points, dims=1))
-        for i in inds
-            new_coords[i, :] = centroid .+ compression_factor .* (tsne_coords[i, :] .- centroid)
-        end
-    end
-    return new_coords
-end
-
 function clustering(filepath::String;
     k::Int=3,
     features=[:ehr, :maht, :koetavPind, :ehitisalunePind, :maxKorrusteArv],
@@ -45,12 +32,16 @@ function clustering(filepath::String;
     feature_stds = std(feature_matrix, dims=1)
     normalized_features = (feature_matrix .- feature_means) ./ feature_stds
 
-    p_tsne_kmeans = plot()
-    p_tsne_gmm = plot()
-    p_tsne_dbscan = plot()
-    p_tsne_hier() = plot()
+    p_pca_kmeans = plot()
+    p_pca_gmm = plot()
+    p_pca_dbscan = plot()
+    p_pca_hier = plot()
 
-    tsne_coords = tsne(normalized_features, 2, 5, 1000, 0.5)
+
+    # ---------- MAIN SCATTERS ----------
+    pca_model = fit(PCA, normalized_features'; maxoutdim=2)
+    pca_data = MultivariateStats.transform(pca_model, normalized_features')'
+
     palette = ColorSchemes.tableau_10.colors[1:k]
 
     # <-- k-means -->
@@ -61,13 +52,12 @@ function clustering(filepath::String;
         data.km_cluster_int = kmeans_res.assignments
         data.km_cluster = categorical(data.km_cluster_int)
 
-        tsne_coords_compressed = compress_clusters(tsne_coords, data.km_cluster_int; compression_factor=0.3)
         # t-SNE colored by kmeans clusters
-        p_tsne_kmeans = scatter(
-            tsne_coords_compressed[:, 1], tsne_coords_compressed[:, 2];
+        p_pca_kmeans = scatter(
+            pca_data[:, 1], pca_data[:, 2];
             group=data.km_cluster_int,
             palette=palette,
-            title="t-SNE: (KMeans-Compressed)",
+            title="PCA: KMeans",
             legend=false, markersize=7
         )
     catch e
@@ -85,12 +75,11 @@ function clustering(filepath::String;
         data.gmm_cluster = categorical(labels)
 
 
-        tsne_coords_compressed = compress_clusters(tsne_coords, data.gmm_cluster_int; compression_factor=0.3)
-        p_tsne_gmm = scatter(
-            tsne_coords_compressed[:, 1], tsne_coords_compressed[:, 2];
+        p_pca_gmm = scatter(
+            pca_data[:, 1], pca_data[:, 2];
             group=data.gmm_cluster_int,
             palette=palette,
-            title="t-SNE: (GMM-Compressed)",
+            title="PCA: Gaussian Mixtures",
             legend=false, markersize=7
         )
     catch e
@@ -106,12 +95,11 @@ function clustering(filepath::String;
 
         data.ClusterCategory = categorical(data.hier_cluster)
 
-        tsne_coords_compressed = compress_clusters(tsne_coords, data.hier_cluster; compression_factor=0.3)
-        p_tsne_hier = scatter(
-            tsne_coords_compressed[:, 1], tsne_coords_compressed[:, 2];
+        p_pca_hier = scatter(
+            pca_data[:, 1], pca_data[:, 2];
             group=data.hier_cluster,
             palette=palette,
-            title="t-SNE: (Hierarchical-Compressed)",
+            title="PCA: Hierarchical",
             legend=false, markersize=7
         )
     catch e
@@ -135,12 +123,11 @@ function clustering(filepath::String;
         data.dbscan_cluster_int = db.assignments
         data.dbscan_cluster = categorical(db.assignments)
 
-        tsne_coords_compressed = compress_clusters(tsne_coords, data.dbscan_cluster_int; compression_factor=0.3)
-        p_tsne_dbscan = scatter(
-            tsne_coords_compressed[:, 1], tsne_coords_compressed[:, 2];
+        p_pca_dbscan = scatter(
+            pca_data[:, 1], pca_data[:, 2];
             group=data.dbscan_cluster_int,
             palette=palette,
-            title="t-SNE: (DBSCAN-Compressed)",
+            title="PCA: DBSCAN",
             legend=false, markersize=7
         )
         cluster_summary = Dict()
@@ -189,19 +176,8 @@ function clustering(filepath::String;
         end
     end
 
-    p_main = nothing
-
-    # ---------- MAIN SCATTERS ----------
-    # (a) PCA - this will show how the data spreads --------------------------
-    pca_model = fit(PCA, normalized_features'; maxoutdim=2)
-    pca_data = MultivariateStats.transform(pca_model, normalized_features')'
-    p_pca = scatter(pca_data[:, 1], pca_data[:, 2];
-        group=data.ClusterCategory, title="PCA",
-        xlabel="PC1", ylabel="PC2", seriescolor=colors,
-        legend=false, markersize=7)
-
-    final_plot = plot(p_pca, p_tsne_gmm, p_tsne_hier, p_tsne_dbscan, p_tsne_kmeans,
-        layout=@layout([a; b; c; d; e]),
+    final_plot = plot(p_pca_gmm, p_pca_hier, p_pca_dbscan, p_pca_kmeans,
+        layout=@layout([a; b; c; d]),
         size=(900, 1800),
         dpi=300)
     savefig(final_plot, output_file)
